@@ -1,0 +1,34 @@
+.content-footer {
+  font-weight: 800;
+}
+
+.blink {
+  animation: blink-animation 1s steps(5, start) infinite;
+  -webkit-animation: blink-animation 1s steps(5, start) infinite;
+}
+
+.cmd {
+  background: none;
+  color: hsl(0, 0%, 60%);
+  font-family: "VT323";
+  font-size: 1.5rem;
+  outline: none;
+  border: none;
+  width: 0px;
+  padding: 0;
+  margin: 0;
+
+  caret-color: black;
+}
+
+@keyframes blink-animation {
+  to {
+    visibility: hidden;
+  }
+}
+
+@-webkit-keyframes blink-animation {
+  to {
+    visibility: hidden;
+  }
+}

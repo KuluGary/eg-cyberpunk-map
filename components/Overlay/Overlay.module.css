@@ -1,0 +1,116 @@
+@import url("https://fonts.googleapis.com/css?family=VT323&display=swap");
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-image: url(/img/overlay-grey.png);
+  background-repeat: no-repeat;
+  background-size: 100vw 100vh;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.crtEffect {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 1;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+  animation: flicker 0.15s infinite;
+}
+
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 2;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(255, 255, 255, 0.2) 10%, rgba(0, 0, 0, 0.1) 100%);
+  opacity: 0.1;
+  position: absolute;
+  bottom: 100%;
+  animation: scanline 10s linear infinite;
+}
+
+@keyframes scanline {
+  0% {
+    bottom: 100%;
+  }
+  80% {
+    bottom: 100%;
+  }
+  100% {
+    bottom: 0%;
+  }
+}
+
+@keyframes flicker {
+  0% {
+    opacity: 0.0109;
+  }
+  5% {
+    opacity: 0.90922;
+  }
+  10% {
+    opacity: 0.41177;
+  }
+  15% {
+    opacity: 0.1204;
+  }
+  20% {
+    opacity: 0.91872;
+  }
+  25% {
+    opacity: 0.51727;
+  }
+  30% {
+    opacity: 0.76777;
+  }
+  35% {
+    opacity: 0.67821;
+  }
+  40% {
+    opacity: 0.15485;
+  }
+  45% {
+    opacity: 0.33936;
+  }
+  50% {
+    opacity: 0.90437;
+  }
+  55% {
+    opacity: 0.30039;
+  }
+  60% {
+    opacity: 0.9643;
+  }
+  65% {
+    opacity: 0.16272;
+  }
+  70% {
+    opacity: 0.80166;
+  }
+  75% {
+    opacity: 0.17033;
+  }
+  80% {
+    opacity: 0.45156;
+  }
+  85% {
+    opacity: 0.03234;
+  }
+  90% {
+    opacity: 0.35743;
+  }
+  95% {
+    opacity: 0.71242;
+  }
+  100% {
+    opacity: 0.16241;
+  }
+}

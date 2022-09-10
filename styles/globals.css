@@ -1,9 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap");
+
 html,
 body {
-  padding: 0;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
-    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+  padding: 0;
+  background: rgb(0, 0, 0);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 a {
@@ -23,4 +33,14 @@ a {
     color: white;
     background: black;
   }
+}
+
+.marker {
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+}
+
+h3 {
+  color: black;
 }
