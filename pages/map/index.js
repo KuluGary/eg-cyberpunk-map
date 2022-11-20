@@ -1,16 +1,24 @@
 import mapboxgl, { Marker } from "!mapbox-gl"; // eslint-disable-line import/no-webpack-loader-syntax
+import booleanIntersects from "@turf/boolean-intersects";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import { point } from "@turf/helpers";
+import lineIntersect from "@turf/line-intersect";
+import lineSlice from "@turf/line-slice";
 import "mapbox-gl/dist/mapbox-gl.css";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useRef } from "react";
 import barris from "../../assets/json/barris.json";
-import districtes from "../../assets/json/districtes.json";
 import border from "../../assets/json/border.json";
 import m from "../../assets/json/dark-matter-dark-grey.json";
+import districtes from "../../assets/json/districtes.json";
 import subway from "../../assets/json/subway.json";
 import Overlay from "../../components/Overlay/Overlay";
-import style from "./map.module.css";
 import prisma from "../../lib/prisma";
+import style from "./map.module.css";
+import union from "@turf/union";
+import booleanWithin from "@turf/boolean-within";
+import difference from "@turf/difference";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -38,6 +46,25 @@ const Map = ({ markers, layers, features }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
 
+  function getParsedFeatures(elements, type) {
+    return {
+      ...elements,
+      features: elements.features.map((element) => {
+        const selectedFeature = features.find((feature) => {
+          return element.properties[type.toUpperCase()] === feature.feature_id && feature.type === type;
+        });
+
+        return {
+          ...element,
+          properties: {
+            ...element.properties,
+            UNLOCKED: `${selectedFeature.unlocked ?? false}`,
+          },
+        };
+      }),
+    };
+  }
+
   useEffect(() => {
     if (map.current) return;
 
@@ -52,81 +79,84 @@ const Map = ({ markers, layers, features }) => {
       ],
     });
 
-    // const getPoints = async () => {
-    //   try {
-    //     const { lat, lng } = map.current.getCenter();
-
-    //     const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=geosearch&gscoord=${lat.toFixed(
-    //       4
-    //     )}%7C${lng.toFixed(4)}&gsradius=10000&gslimit=50&origin=*`;
-
-    //     const response = await fetch(url);
-    //     const json = await response.json();
-
-    //     for (let geoObject of json.query.geosearch) {
-    //       if (markers[geoObject.pageid]) return;
-    //       const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-    //         `<h3><a href="https://en.wikipedia.org/wiki/${geoObject.title}">${geoObject.title}</a></h3>`
-    //       );
-    //       markers[geoObject.pageid] = new mapboxgl.Marker()
-    //         .setLngLat([geoObject.lon, geoObject.lat])
-    //         .setPopup(popup)
-    //         .addTo(map.current);
-    //     }
-    //   } catch (error) {
-    //     console.error(error);
-    //     alert("There was an error.");
-    //   }
-    // };
-    // getPoints();
-
-    // map.current.on("moveend", () => {
-    //   getPoints();
-    // });
-
     map.current.on("style.load", () => {
-      map.current.addSource("barris", {
-        type: "geojson",
-        data: barris,
+      let availableArea;
+
+      const parsedDistrictes = getParsedFeatures(districtes, "districte");
+
+      parsedDistrictes.features.forEach((feature) => {
+        if (feature.properties["UNLOCKED"] === "true") {
+          if (!availableArea) {
+            availableArea = feature;
+          } else {
+            availableArea = union(availableArea, feature, { properties: feature.properties });
+          }
+        }
       });
 
-      const districtesParsed = {
-        ...districtes,
-        features: districtes.features.map((districte) => {
-          const selectedFeature = features.find((feature) => {
-            return districte.properties["DISTRICTE"] === feature.feature_id && feature.type === "districte";
-          });
-
-          return {
-            ...districte,
-            properties: {
-              ...districte.properties,
-              UNLOCKED: `${selectedFeature?.unlocked ?? false}`,
-            },
-          };
-        }),
+      const fogOfWar = {
+        ...border,
+        features: border.features.map((feature) => difference(feature, availableArea)),
       };
+
+      map.current.addSource("border", {
+        type: "geojson",
+        data: fogOfWar,
+      });
 
       map.current.addSource("districtes", {
         type: "geojson",
-        data: districtesParsed,
+        data: parsedDistrictes,
       });
+
+      map.current.addSource("barris", {
+        type: "geojson",
+        data: parseBarris(barris),
+      });
+
+      function parseSubways(subway) {
+        const newSubwayFeatures = [];
+
+        subway.features
+          .filter(
+            (elem, index, self) => self.findIndex((t) => t.properties.stroke === elem.properties.stroke) === index
+          )
+          .forEach((line) => {
+            const isIntersecting = booleanIntersects(line, availableArea);
+            if (isIntersecting) {
+              if (line.geometry.type === "LineString") {
+                const intersection = lineIntersect(line, availableArea);
+                const [start, end] = intersection.features;
+                const slice = lineSlice(start, end ?? line.geometry.coordinates[0], line);
+
+                newSubwayFeatures.push(slice);
+              }
+            }
+          });
+
+        return newSubwayFeatures;
+      }
+
+      function parseBarris(barris) {
+        const newFeatures = [];
+
+        barris.features.forEach((barri) => {
+          if (barri.geometry.type === "Polygon") {
+            const isIntersecting = booleanWithin(barri, availableArea);
+
+            if (isIntersecting) newFeatures.push(barri);
+          }
+        });
+
+        return {
+          ...barris,
+          features: newFeatures,
+        };
+      }
 
       const subwayParsed = {
         ...subway,
-        features: subway.features.map((line) => {
-          const selectedFeature = features.find((feature) => {
-            return line.properties["osm_id"] === feature.feature_id && feature.type === "subway";
-          });
-
-          return {
-            ...line,
-            properties: {
-              ...line.properties,
-              UNLOCKED: `${selectedFeature?.unlocked ?? false}`,
-            },
-          };
-        }),
+        features: parseSubways(subway),
       };
 
       map.current.addSource("subway", {
@@ -134,74 +164,43 @@ const Map = ({ markers, layers, features }) => {
         data: subwayParsed,
       });
 
-      map.current.addSource("border", {
-        type: "geojson",
-        data: border,
-      });
-
       map.current.addLayer({
-        id: "districtes-fill",
+        id: "border-fill",
         type: "fill",
-        source: "districtes",
+        source: "border",
         layout: {},
         paint: {
-          "fill-color": [
-            "match",
-            ["get", "UNLOCKED"],
-            "true",
-            "rgba(0,0,0,0)",
-            "false",
-            "rgba(0,0,0,.8)",
-            "rgba(0,0,0,.8)",
-          ],
+          "fill-color": "rgba(0,0,0,.8)",
         },
       });
 
-      if (layers.find(({ name }) => name === "barris")?.unlocked) {
-        map.current.addLayer({
-          id: "barris-outline",
-          type: "line",
-          source: "barris",
-          layout: {},
-          paint: {
-            "line-color": "#d23e98",
-            "line-width": 1,
-          },
-          filter: ["==", "$type", "Polygon"],
-        });
-      }
+      map.current.addLayer({
+        id: "barris-outline",
+        type: "line",
+        source: "barris",
+        layout: {},
+        paint: {
+          "line-color": "#d23e98",
+          "line-width": 1,
+        },
+        filter: ["==", "$type", "Polygon"],
+      });
 
-      if (layers.find(({ name }) => name === "districtes")?.unlocked) {
-        map.current.addLayer({
-          id: "districtes-outline",
-          type: "line",
-          source: "districtes",
-          layout: {},
-          paint: {
-            "line-color": "#d23e98",
-            "line-width": 1,
+      map.current.addLayer({
+        id: "subway-outline",
+        type: "line",
+        source: "subway",
+        layout: {},
+        paint: {
+          "line-color": {
+            type: "identity",
+            property: "stroke",
           },
-          filter: ["==", "$type", "Polygon"],
-        });
-      }
-
-      if (layers.find(({ name }) => name === "subway")?.unlocked) {
-        map.current.addLayer({
-          id: "subway-outline",
-          type: "line",
-          source: "subway",
-          layout: {},
-          paint: {
-            "line-color": {
-              type: "identity",
-              property: "stroke",
-            },
-            "line-width": 1,
-            "line-opacity": ["match", ["get", "UNLOCKED"], "true", 1, "false", 0, 0],
-          },
-          filter: ["==", "$type", "LineString"],
-        });
-      }
+          "line-width": 1,
+          "line-opacity": 1,
+        },
+        filter: ["==", "$type", "LineString"],
+      });
 
       map.current.addLayer({
         id: "border-outline",
@@ -210,7 +209,19 @@ const Map = ({ markers, layers, features }) => {
         layout: {},
         paint: {
           "line-color": "#2d7727",
-          "line-width": 4,
+          "line-width": 1,
+        },
+        filter: ["==", "$type", "Polygon"],
+      });
+
+      map.current.addLayer({
+        id: "districtes-outline",
+        type: "line",
+        source: "districtes",
+        layout: {},
+        paint: {
+          "line-color": "#d23e98",
+          "line-width": ["match", ["get", "UNLOCKED"], "true", 1, "false", 0, 0],
         },
         filter: ["==", "$type", "Polygon"],
       });
@@ -223,24 +234,26 @@ const Map = ({ markers, layers, features }) => {
         const markerIcon = await fetch("/svg/markerIcon.svg").then((res) => res.text());
 
         for (const marker of markers) {
-          if (!marker.unlocked) return;
+          if (availableArea.length === 0 || !booleanPointInPolygon(point(marker.coordinates), availableArea)) continue;
 
           const innerIcon = await fetch(`/svg/markerIcons/${marker.type}.svg`).then((res) => res.text());
+          let icon = document.createElement("svg");
+          icon.innerHTML = innerIcon;
+          icon = icon.firstChild;
+          icon.classList.add("marker-icon");
 
           const markerElement = document.createElement("div");
-          const icon = document.createElement("svg");
 
           markerElement.className = "marker";
 
-          icon.innerHTML = innerIcon;
           markerElement.innerHTML = markerIcon;
 
           markerElement.firstChild.style.fill = stringToHsl(marker.type);
-          icon.querySelector("path").setAttribute("transform", "translate(230, 160)");
+          markerElement.appendChild(icon);
 
-          markerElement.firstChild.appendChild(icon.querySelector("path"));
+          const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`<h3>${marker.name}</h3>`);
 
-          new Marker(markerElement).setLngLat(marker.coordinates).addTo(map.current);
+          new Marker(markerElement).setLngLat(marker.coordinates).setPopup(popup).addTo(map.current);
         }
       })();
     });

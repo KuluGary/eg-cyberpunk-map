@@ -36,9 +36,19 @@ a {
 }
 
 .marker {
+  position: relative;
   width: 40px;
   height: 40px;
   cursor: pointer;
+}
+
+.marker-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  transform: translate(50%, 25%);
 }
 
 h3 {
